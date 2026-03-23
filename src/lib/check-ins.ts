@@ -1,6 +1,7 @@
 import type { ChallengeCheckIn, User } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/auth";
+import { isChallengeVisibleToUser } from "@/lib/challenges";
 import type { CheckInFormValues } from "@/lib/check-in-config";
 
 export type CheckInFormErrors = Partial<Record<keyof CheckInFormValues | "form", string>>;
@@ -12,10 +13,14 @@ export type CheckInCardData = {
   checkInDate: Date;
   moderationStatus: string;
   createdAt: Date;
+  likeCount: number;
+  viewerHasLiked: boolean;
   challenge: {
     id: string;
     title: string;
     category: string;
+    visibility?: string;
+    creatorId?: string;
   };
   user: {
     id: string;
@@ -145,8 +150,14 @@ function mapCheckInRecord(
       id: string;
       title: string;
       category: string;
+      visibility?: string;
+      creatorId?: string;
     };
     user: Pick<User, "id" | "username" | "email" | "avatarPlaceholder">;
+    _count: {
+      likes: number;
+    };
+    likes?: { id: string }[];
   },
 ): CheckInCardData {
   return {
@@ -156,52 +167,34 @@ function mapCheckInRecord(
     checkInDate: checkIn.checkInDate,
     moderationStatus: checkIn.moderationStatus,
     createdAt: checkIn.createdAt,
+    likeCount: checkIn._count.likes,
+    viewerHasLiked: Boolean(checkIn.likes?.length),
     challenge: checkIn.challenge,
     user: checkIn.user,
   };
 }
 
-export async function listChallengeCheckIns(challengeId: string, take = 12) {
-  const checkIns = await prisma.challengeCheckIn.findMany({
-    where: {
-      challengeId,
-      moderationStatus: "approved",
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take,
-    include: {
-      challenge: {
-        select: {
-          id: true,
-          title: true,
-          category: true,
+function getLikeInclude(viewer: SessionUser | null) {
+  return viewer
+    ? {
+        likes: {
+          where: {
+            userId: viewer.id,
+          },
+          select: {
+            id: true,
+          },
+          take: 1,
         },
-      },
-      user: {
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          avatarPlaceholder: true,
-        },
-      },
-    },
-  });
-
-  return checkIns.map(mapCheckInRecord);
+      }
+    : {};
 }
 
-export async function listProfileCheckIns(viewer: SessionUser | null, take = 6) {
-  if (!viewer) {
-    return [];
-  }
-
+async function listRawVisibleCheckIns(viewer: SessionUser | null, where: object, take: number) {
   const checkIns = await prisma.challengeCheckIn.findMany({
     where: {
-      userId: viewer.id,
       moderationStatus: "approved",
+      ...where,
     },
     orderBy: {
       createdAt: "desc",
@@ -213,6 +206,8 @@ export async function listProfileCheckIns(viewer: SessionUser | null, take = 6) 
           id: true,
           title: true,
           category: true,
+          visibility: true,
+          creatorId: true,
         },
       },
       user: {
@@ -223,65 +218,87 @@ export async function listProfileCheckIns(viewer: SessionUser | null, take = 6) 
           avatarPlaceholder: true,
         },
       },
+      _count: {
+        select: {
+          likes: true,
+        },
+      },
+      ...getLikeInclude(viewer),
     },
   });
 
-  return checkIns.map(mapCheckInRecord);
+  return checkIns.filter((checkIn) => isChallengeVisibleToUser(checkIn.challenge, viewer)).map(mapCheckInRecord);
+}
+
+export async function listChallengeCheckIns(challengeId: string, viewer: SessionUser | null, take = 12) {
+  return listRawVisibleCheckIns(
+    viewer,
+    {
+      challengeId,
+    },
+    take,
+  );
+}
+
+export async function listProfileCheckIns(subjectUserId: string, viewer: SessionUser | null, take = 6) {
+  return listRawVisibleCheckIns(
+    viewer,
+    {
+      userId: subjectUserId,
+    },
+    take,
+  );
 }
 
 export async function listHomeFeedCheckIns(viewer: SessionUser | null, take = 8) {
-  const visibleChallengeIds = await prisma.challenge.findMany({
-    where: viewer
+  return listRawVisibleCheckIns(
+    viewer,
+    viewer
       ? {
-          OR: [
-            { visibility: "public" },
-            { visibility: "friends" },
-            { creatorId: viewer.id },
-            { participants: { some: { userId: viewer.id } } },
-          ],
+          challenge: {
+            OR: [
+              { visibility: "public" },
+              { visibility: "friends" },
+              { creatorId: viewer.id },
+              { participants: { some: { userId: viewer.id } } },
+            ],
+          },
         }
       : {
-          visibility: "public",
+          challenge: {
+            visibility: "public",
+          },
         },
-    select: {
-      id: true,
+    take,
+  );
+}
+
+export async function toggleCheckInLike(checkInId: string, viewer: SessionUser) {
+  const existing = await prisma.checkInLike.findUnique({
+    where: {
+      userId_checkInId: {
+        userId: viewer.id,
+        checkInId,
+      },
     },
-    take: 40,
   });
 
-  if (visibleChallengeIds.length === 0) {
-    return [];
+  if (existing) {
+    await prisma.checkInLike.delete({
+      where: {
+        id: existing.id,
+      },
+    });
+
+    return { liked: false as const };
   }
 
-  const checkIns = await prisma.challengeCheckIn.findMany({
-    where: {
-      moderationStatus: "approved",
-      challengeId: {
-        in: visibleChallengeIds.map((item) => item.id),
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    take,
-    include: {
-      challenge: {
-        select: {
-          id: true,
-          title: true,
-          category: true,
-        },
-      },
-      user: {
-        select: {
-          id: true,
-          username: true,
-          email: true,
-          avatarPlaceholder: true,
-        },
-      },
+  await prisma.checkInLike.create({
+    data: {
+      userId: viewer.id,
+      checkInId,
     },
   });
 
-  return checkIns.map(mapCheckInRecord);
+  return { liked: true as const };
 }

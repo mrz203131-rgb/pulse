@@ -47,6 +47,7 @@ export function AppHeader() {
   const pathname = usePathname();
   const meta =
     (pathname.startsWith("/challenges/") ? pageMeta["/challenges"] : undefined) ??
+    (pathname.startsWith("/u/") ? pageMeta["/profile"] : undefined) ??
     pageMeta[pathname] ??
     pageMeta["/"];
 

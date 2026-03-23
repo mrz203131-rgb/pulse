@@ -1,18 +1,20 @@
 import Link from "next/link";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Heart } from "lucide-react";
 import type { CheckInCardData } from "@/lib/check-ins";
 
 type CheckInCardProps = {
   checkIn: CheckInCardData;
+  nextPath?: string;
 };
 
-export function CheckInCard({ checkIn }: CheckInCardProps) {
+export function CheckInCard({ checkIn, nextPath = "/" }: CheckInCardProps) {
   const displayName = checkIn.user.username ?? checkIn.user.email;
   const dateLabel = new Intl.DateTimeFormat("en-CA", {
     month: "short",
     day: "numeric",
     year: "numeric",
   }).format(checkIn.checkInDate);
+  const profileHref = checkIn.user.username ? `/u/${checkIn.user.username}` : undefined;
 
   return (
     <article className="app-card overflow-hidden p-0">
@@ -30,7 +32,13 @@ export function CheckInCard({ checkIn }: CheckInCardProps) {
                 {checkIn.user.avatarPlaceholder ?? displayName.slice(0, 1).toUpperCase()}
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-900">{displayName}</p>
+                {profileHref ? (
+                  <Link href={profileHref} className="text-sm font-semibold text-slate-900">
+                    {displayName}
+                  </Link>
+                ) : (
+                  <p className="text-sm font-semibold text-slate-900">{displayName}</p>
+                )}
                 <Link href={`/challenges/${checkIn.challenge.id}`} className="text-xs font-medium text-[var(--color-accent-strong)]">
                   {checkIn.challenge.title}
                 </Link>
@@ -42,9 +50,26 @@ export function CheckInCard({ checkIn }: CheckInCardProps) {
           </div>
         </div>
         <p className="text-sm leading-6 text-slate-700">{checkIn.caption}</p>
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <CalendarDays className="size-4" />
-          <span>{dateLabel}</span>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <CalendarDays className="size-4" />
+            <span>{dateLabel}</span>
+          </div>
+          <form action="/api/check-ins/like" method="post">
+            <input type="hidden" name="checkInId" value={checkIn.id} />
+            <input type="hidden" name="next" value={nextPath} />
+            <button
+              type="submit"
+              className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold ${
+                checkIn.viewerHasLiked
+                  ? "bg-[var(--color-accent-soft)] text-[var(--color-accent-strong)]"
+                  : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              <Heart className={`size-4 ${checkIn.viewerHasLiked ? "fill-current" : ""}`} />
+              {checkIn.likeCount} {checkIn.likeCount === 1 ? "cheer" : "cheers"}
+            </button>
+          </form>
         </div>
       </div>
     </article>

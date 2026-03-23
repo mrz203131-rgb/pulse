@@ -23,7 +23,7 @@ type ChallengeDetailPageProps = {
 
 export default async function ChallengeDetailPage({ params, searchParams }: ChallengeDetailPageProps) {
   const [{ challengeId }, query, viewer] = await Promise.all([params, searchParams, getSessionUser()]);
-  const [result, checkIns] = await Promise.all([getChallengeDetail(challengeId, viewer), listChallengeCheckIns(challengeId)]);
+  const [result, checkIns] = await Promise.all([getChallengeDetail(challengeId, viewer), listChallengeCheckIns(challengeId, viewer)]);
 
   if (result.status === "missing") {
     return notFound();
@@ -178,7 +178,7 @@ export default async function ChallengeDetailPage({ params, searchParams }: Chal
         {checkIns.length ? (
           <div className="space-y-4">
             {checkIns.map((checkIn) => (
-              <CheckInCard key={checkIn.id} checkIn={checkIn} />
+              <CheckInCard key={checkIn.id} checkIn={checkIn} nextPath={`/challenges/${challenge.id}`} />
             ))}
           </div>
         ) : (

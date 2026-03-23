@@ -76,7 +76,7 @@ export default async function HomePage() {
         {feedCheckIns.length ? (
           <div className="space-y-4">
             {feedCheckIns.map((checkIn) => (
-              <CheckInCard key={checkIn.id} checkIn={checkIn} />
+              <CheckInCard key={checkIn.id} checkIn={checkIn} nextPath="/" />
             ))}
           </div>
         ) : (
