@@ -32,6 +32,7 @@ model User {
   following         UserFollow[]    @relation("Following")
   followers         UserFollow[]    @relation("Followers")
   checkInLikes      CheckInLike[]
+  badgeAwards       UserBadgeAward[]
   posts             PulsePost[]
 }
 
@@ -136,6 +137,29 @@ model CheckInLike {
 
   @@unique([userId, checkInId])
   @@index([checkInId, createdAt])
+}
+
+model BadgeDefinition {
+  id          String          @id @default(cuid())
+  slug        String          @unique
+  title       String
+  description String
+  icon        String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  awards      UserBadgeAward[]
+}
+
+model UserBadgeAward {
+  id               String          @id @default(cuid())
+  awardedAt        DateTime        @default(now())
+  userId           String
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badgeDefinitionId String
+  badgeDefinition  BadgeDefinition @relation(fields: [badgeDefinitionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, badgeDefinitionId])
+  @@index([userId, awardedAt])
 }
 
 model DailyChecklistItem {

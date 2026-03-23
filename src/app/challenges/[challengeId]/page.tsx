@@ -8,6 +8,8 @@ import { EmptyState } from "@/components/pulse/empty-state";
 import { formatChallengeWindow, getFrequencyLabel, getVisibilityLabel } from "@/lib/challenge-config";
 import { listChallengeCheckIns } from "@/lib/check-ins";
 import { getChallengeDetail, canJoinChallenge, getChallengePostPermission } from "@/lib/challenges";
+import { getChallengeProgressForUser } from "@/lib/gamification";
+import { prisma } from "@/lib/prisma";
 
 type ChallengeDetailPageProps = {
   params: Promise<{
@@ -23,7 +25,17 @@ type ChallengeDetailPageProps = {
 
 export default async function ChallengeDetailPage({ params, searchParams }: ChallengeDetailPageProps) {
   const [{ challengeId }, query, viewer] = await Promise.all([params, searchParams, getSessionUser()]);
-  const [result, checkIns] = await Promise.all([getChallengeDetail(challengeId, viewer), listChallengeCheckIns(challengeId, viewer)]);
+  const [result, checkIns, viewerProgress, totalCheckInCount] = await Promise.all([
+    getChallengeDetail(challengeId, viewer),
+    listChallengeCheckIns(challengeId, viewer),
+    viewer ? getChallengeProgressForUser(challengeId, viewer.id) : Promise.resolve(null),
+    prisma.challengeCheckIn.count({
+      where: {
+        challengeId,
+        moderationStatus: "approved",
+      },
+    }),
+  ]);
 
   if (result.status === "missing") {
     return notFound();
@@ -44,6 +56,7 @@ export default async function ChallengeDetailPage({ params, searchParams }: Chal
   const creatorName = challenge.creator.username ?? challenge.creator.email;
   const showJoinButton = canJoinChallenge(challenge, viewer) && !challenge.isParticipant;
   const postPermission = getChallengePostPermission(challenge, viewer);
+  const showViewerProgress = Boolean(viewer && (challenge.isParticipant || viewer.id === challenge.creatorId) && viewerProgress);
 
   return (
     <div className="space-y-6">
@@ -107,9 +120,27 @@ export default async function ChallengeDetailPage({ params, searchParams }: Chal
           </div>
           <div className="rounded-[26px] bg-[var(--color-surface-alt)] p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-accent-strong)]">Progress summary</p>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              Placeholder for streaks, completion rate, and check-in cadence. Creation and joins are real; deeper progress math is still pending.
-            </p>
+            {showViewerProgress && viewerProgress ? (
+              <div className="mt-3 space-y-3">
+                <div className="flex items-center justify-between gap-3 text-sm text-slate-600">
+                  <span>{viewerProgress.totalCompletedCheckIns} of {viewerProgress.targetCount} complete</span>
+                  <span>{viewerProgress.streakCount} streak</span>
+                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-white/80">
+                  <div
+                    className="h-full rounded-full bg-[linear-gradient(90deg,var(--color-accent-strong),#ffb06a)]"
+                    style={{ width: `${viewerProgress.completionPercentage}%` }}
+                  />
+                </div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                  {viewerProgress.completionPercentage}% complete
+                </p>
+              </div>
+            ) : (
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                {totalCheckInCount} approved check-ins have landed in this challenge so far. Sign in and join to unlock personal streak and completion tracking.
+              </p>
+            )}
           </div>
         </div>
 

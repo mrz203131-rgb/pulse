@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { canPostCheckInToChallenge, validateCheckInForm } from "@/lib/check-ins";
 import { getInitialCheckInValues } from "@/lib/check-in-config";
+import { awardBadgesForUser } from "@/lib/gamification";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -82,6 +83,8 @@ export async function POST(request: Request) {
         moderationStatus: "approved",
       },
     });
+
+    await awardBadgesForUser(sessionUser.id);
 
     return NextResponse.json({
       redirectTo: `/challenges/${checkIn.challengeId}?checkedIn=1`,

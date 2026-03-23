@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Flame, ImageIcon, Lock, Medal, Users } from "lucide-react";
+import { Award, Flame, ImageIcon, Lock, Medal, Sparkles, Target, Users } from "lucide-react";
 import { ChallengeSummaryCard } from "@/components/pulse/challenge-summary-card";
 import { CheckInCard } from "@/components/pulse/check-in-card";
 import { EmptyState } from "@/components/pulse/empty-state";
@@ -89,11 +89,43 @@ export function ProfilePageContent({ profile, viewerSignedIn, nextPath }: Profil
               <p className="mt-1 text-xs text-slate-500">followers</p>
             </div>
             <div className="rounded-3xl bg-white/85 p-3 text-center shadow-[0_12px_28px_rgba(15,23,42,0.06)]">
-              <p className="text-lg font-semibold text-slate-900">{profile.activeChallenges.length}</p>
-              <p className="mt-1 text-xs text-slate-500">active now</p>
+              <p className="text-lg font-semibold text-slate-900">{profile.stats.completedChallenges}</p>
+              <p className="mt-1 text-xs text-slate-500">completed</p>
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <SectionHeader
+          eyebrow="Badges"
+          title="Badge highlights"
+          description="Automatically awarded from real check-in activity and challenge completion milestones."
+        />
+        {profile.badgeHighlights.length ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {profile.badgeHighlights.map((badge) => (
+              <div key={badge.id} className="app-card p-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-2xl bg-[var(--color-sand-soft)] p-3 text-[var(--color-sand-strong)]">
+                    {badge.icon === "flame" ? <Flame className="size-5" /> : badge.icon === "crown" ? <Award className="size-5" /> : badge.icon === "medal" ? <Medal className="size-5" /> : badge.icon === "bolt" ? <Sparkles className="size-5" /> : <Target className="size-5" />}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-900">{badge.title}</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-500">{badge.description}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon={<Award className="size-5" />}
+            title="No badges yet"
+            description="Badges unlock automatically from real check-ins and challenge completions."
+            actionLabel="Post the first check-in"
+          />
+        )}
       </section>
 
       <section className="space-y-3">
@@ -122,16 +154,61 @@ export function ProfilePageContent({ profile, viewerSignedIn, nextPath }: Profil
         <SectionHeader
           eyebrow="Completed"
           title="Finished challenge archive"
-          description="This placeholder section reserves space for completed challenges and badges once historical completion logic is implemented."
+          description="A practical MVP placeholder with real completion counts. Rich archive cards and completion history details can expand later."
         />
         <div className="app-card flex items-center gap-3 p-4">
           <div className="rounded-2xl bg-[var(--color-surface-alt)] p-3 text-[var(--color-accent-strong)]">
             <Lock className="size-5" />
           </div>
           <p className="text-sm leading-6 text-slate-600">
-            Completion history is not modeled yet. The section is intentionally present so the profile layout already supports it.
+            {profile.stats.completedChallenges
+              ? `${profile.stats.completedChallenges} completed challenge${profile.stats.completedChallenges === 1 ? "" : "s"} counted from real progress calculations. Detailed completion archive cards are still a placeholder layer.`
+              : "Completion history cards are still a placeholder layer. Counts will appear here as challenge targets are finished."}
           </p>
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <SectionHeader
+          eyebrow="Milestones"
+          title="Progress snapshots"
+          description="Real challenge progress based on qualifying check-ins and current streak state."
+        />
+        {profile.challengeProgress.length ? (
+          <div className="space-y-3">
+            {profile.challengeProgress.map((progress) => (
+              <div key={progress.challengeId} className="app-card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-slate-900">{progress.title}</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {progress.totalCompletedCheckIns} of {progress.targetCount} complete
+                    </p>
+                  </div>
+                  <div className="rounded-full bg-[var(--color-accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--color-accent-strong)]">
+                    {progress.streakCount} streak
+                  </div>
+                </div>
+                <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-[linear-gradient(90deg,var(--color-accent-strong),#ffb06a)]"
+                    style={{ width: `${progress.completionPercentage}%` }}
+                  />
+                </div>
+                <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                  {progress.completionPercentage}% complete
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon={<Target className="size-5" />}
+            title="No active progress yet"
+            description="Join a challenge and start checking in to unlock real progress tracking."
+            actionLabel="Find a challenge"
+          />
+        )}
       </section>
 
       <section className="space-y-3">
